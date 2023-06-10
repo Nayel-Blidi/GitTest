@@ -4,19 +4,25 @@ from scipy import optimize
 from sklearn import preprocessing
 from scipy.io import loadmat
 import warnings
+import matplotlib.pyplot as plt
+import re
 
 #%% 
 #================GRADIENT REGRESSION================#
 
-class LabellizedArray:
+class Dataset:
 
-    def __init__(self, array):
-        self.array = array
-        self.labels = array[:, 0]
-        self.dataset = array[:, 1:]
-        return None
-    
-    # Callable (public) functions
+    def __init__(self, data, labels, 
+                 theta=[0,0], alpha=1e4, num_iters=1000):
+        
+        # Mandatory data
+        self.labels = labels
+        self.data = data
+
+        # Optional methods arguments
+        self.theta = theta
+        self.alpha = alpha
+        self.num_iters = num_iters
 
     # Intern (private) functions
     def __gaussianKernel(x1, x2, sigma):
@@ -32,6 +38,89 @@ class LabellizedArray:
         
         return J
     
+    # Callable (public) functions
+    def visualizeData2D(self, xaxis_label, yaxis_label, plot_type="default"):
+        for index, label in enumerate(self.labels):
+            if label == xaxis_label:
+                xaxis_index = index
+            elif label == yaxis_label:
+                yaxis_index = index
+
+        xaxis_data = self.data[:, xaxis_index]
+        yaxis_data = self.data[:, yaxis_index]
+
+        if plot_type == "default":
+            plt.figure()
+            plt.plot(xaxis_data, yaxis_data)
+            plt.xlabel(xaxis_label)
+            plt.ylabel(yaxis_label)
+            plt.title(xaxis_label + " VS " + yaxis_label)
+            plt.show()
+        elif plot_type == "scatter":
+            plt.figure()
+            plt.scatter(xaxis_data, yaxis_data)
+            plt.xlabel(xaxis_label)
+            plt.ylabel(yaxis_label)  
+            plt.title(xaxis_label + " VS " + yaxis_label)
+            plt.show()
+        else:
+            raise ValueError("Not a valid plot type")  
+
+        return None
+
+    def visualizeData3D(self, xaxis_label, yaxis_label, zaxis_label, plot_type="default"):
+        for index, label in enumerate(self.labels):
+            if label == xaxis_label:
+                xaxis_index = index
+            elif label == yaxis_label:
+                yaxis_index = index
+            elif label == zaxis_label:
+                zaxis_index = index
+
+        xaxis_data = self.data[:, xaxis_index]
+        yaxis_data = self.data[:, yaxis_index]
+        zaxis_data = self.data[:, zaxis_index]
+
+        if plot_type == "default":
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.plot(xaxis_data, yaxis_data, zaxis_data)
+            ax.set_xlabel(xaxis_label)
+            ax.set_ylabel(yaxis_label)
+            ax.set_zlabel(zaxis_label)
+            plt.show()
+        elif plot_type == "scatter":
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
+            ax.scatter(xaxis_data, yaxis_data, zaxis_data)
+            ax.set_xlabel(xaxis_label)
+            ax.set_ylabel(yaxis_label)
+            ax.set_zlabel(zaxis_label)
+            plt.show()
+        else:
+            raise ValueError("Not a valid plot type")  
+
+        return None
+
+    def gaussianGradient(self, theta, alpha, num_iters, sigma=1):
+        X, y = self.data, self.labels
+
+        m = len(y)
+        J_history = []
+        for k in tqdm(range(num_iters)):
+            for i in range(m):
+                h_i = np.dot(X[i], theta)
+                grad = 0
+                for j in range(m):
+                    weight = gaussianKernel(X[i], X[j], sigma)
+                    grad += weight * (h_i - y[i]) * X[i]
+                    
+                dJ = 1 / m * grad
+                theta = theta - alpha * dJ
+                
+            J_history.append(computeCost(X, y, theta))
+            
+        return theta, J_history  
     
 
 if __name__ == "__main__":

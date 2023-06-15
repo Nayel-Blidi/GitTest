@@ -344,6 +344,18 @@ class Dataset:
 
         return theta
     
+    def autoTestGradient(self):
+        X, y = self.data, self.labels
+
+        theta = self.theta
+        length_test = len(y)
+
+        prediction = np.round(X@theta)
+        success_rate = np.sum(prediction == y) / length_test
+        print("Gradient self-efficency =", round(success_rate, 4)*100, "%")
+
+        return prediction
+    
     def predictGradient(self, test_data, test_label=0):
         """
         test_data : input data to be classified using the previously computed gradient
@@ -362,7 +374,7 @@ class Dataset:
 
         return prediction, success_rate
     
-    def visualizeGradient(self, test_data, xaxis_col=0, yaxis_col=1):
+    def visualizeGradient2D(self, test_data, xaxis_col=0, yaxis_col=1):
         """
         Plots in 2D the data, labelized with their predicted categories
         """
@@ -394,17 +406,44 @@ class Dataset:
 
         return prediction, fig
 
-    def autoTestGradient(self):
-        X, y = self.data, self.labels
 
+    def visualizeGradient3D(self, test_data, xaxis_col=0, yaxis_col=1, zaxis_col=2):
+        """
+        Plots in 3D the data, labelized with their predicted categories
+        """
+
+        categories = np.unique(self.labels)
+        print(categories)
         theta = self.theta
-        length_test = len(y)
+        try:
+            prediction = np.round(test_data@theta)
+        except:
+            raise ValueError("Computed gradient not compatible with this dataset")
+        
+        xaxis_index = 0
+        yaxis_index = 1
+        zaxis_index = 2
+        for index, colomn_name in enumerate(self.colomn_names):
+            if colomn_name == xaxis_col:
+                xaxis_index = index
+            elif colomn_name == yaxis_col:
+                yaxis_index = index
+            elif colomn_name == zaxis_col:
+                zaxis_index == index
 
-        prediction = np.round(X@theta)
-        success_rate = np.sum(prediction == y) / length_test
-        print("Gradient self-efficency =", round(success_rate, 4)*100, "%")
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        for label in categories:
+            ax.scatter(test_data[np.where(prediction==label), xaxis_index], 
+                        test_data[np.where(prediction==label), yaxis_index], 
+                        test_data[np.where(prediction==label), zaxis_index], label=int(label))
+        plt.legend(title="Categories")
+        plt.xlabel(self.colomn_names[xaxis_index])
+        plt.ylabel(self.colomn_names[yaxis_index])
+        plt.title("Gradient classification prediction")
 
-        return prediction
+        return prediction, fig
+    
 
     def oneVsAll(self, lambda_=0.1, tol=1e-8, itterations=50):
         """

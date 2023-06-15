@@ -2,7 +2,6 @@ import numpy as np
 from tqdm import tqdm
 from scipy import optimize
 from sklearn import preprocessing
-from scipy.io import loadmat
 import warnings
 import matplotlib.pyplot as plt
 import re
@@ -10,7 +9,46 @@ import re
 
 class Dataset:
     """
-    Class of common dataarray methods
+    Class of common dataarray (dim=2) methods. Data should be flattened beforehand otherwise.
+
+    Public functions :
+        Utils :
+            # Dataset information
+            returnMetadata(printMetadata=True) -> (categories, colomn_names, dimensions)
+            returnData() -> (data, labels, theta)
+
+            # Dataset visualization
+            visualizeData2D(xaxis_col=0, yaxis_col=1, plot_type="scatter","default") -> fig
+            visualizeData3D(xaxis_col=0, yaxis_col=1, zaxis_col=2, plot_type="scatter", "default") -> fig
+
+        Data editing functions :
+            # Dataset modification
+            replaceData(previous_value, new_value) 
+
+            # Dataset normalization
+            normalizeData() -> X_normalized, X_mean, X_sigma
+            denormalizeData() -> X_denormalized, X_mean, X_sigma
+            
+            # Data Principal Component Analysis (PCA)
+            PCA(k_main_components=0, normalization=True) -> PCA array
+            recoverDataPCA()
+            visualizePCA()
+
+        Data processing algorithms :
+            # Gradient descent algorithms computation
+            descentGradient(alpha=0.01, num_iters=50) -> theta
+            gaussianGradient(alpha=0.01, num_iters=50) -> theta
+            normalGradient(alpha=0.01, num_iters=50) -> theta
+
+            # Gradient desecent algorithms evaluation
+            predictGradient(test_data, test_label=0) -> prediction
+            autoTestGradient() -> prediction, sucess_rate
+            visualizeGradient() -> prediction, fig
+
+            # OneVsAll classification
+            oneVsAll(self, lambda_=0.1, tol=1e-8, itterations=50) -> theta
+            predictOneVsAll(self, test_data, test_labels=0) -> prediction 
+
     """
 
     def __init__(self, data, labels, colomn_names,
@@ -47,14 +85,29 @@ class Dataset:
             J = J + 1/(2*m) * (h - y[i])**2
 
         return J
+
+    def __lrCostFunction(theta, X, y, lambda_):
+
+        m = y.size  
+        J = 0
+        grad = np.zeros(theta.shape)
+
+        h = Dataset.__sigmoid(X@theta)
+        J = (-y.T@np.log(h) - (1 - y).T@np.log(1 - h))/m
+
+        grad = X.T @ (h - y)/m
+        reg_term = lambda_ /(2*m) * (theta[1:].T@theta[1:])
+        J = J + reg_term
+
+        grad[1:] = grad[1:] + lambda_/m * theta[1:]
+        
+        return J, grad
+
     
     # Callable (public) functions ============================================
-        # - Utils
-        # - Data editing functions
-        # - Data processing algorithms
 
     # Utils ==================================================================
-    def returnMetadata(self, printMetadata=True):
+    def returnMetadata(self, printMetadata=True) -> tuple:
         categories = np.unique(self.labels)
         colomn_names = self.colomn_names
         dimensions = np.shape(self.data)
@@ -65,7 +118,7 @@ class Dataset:
             print("Dimensions : \n", dimensions)
         return (categories, colomn_names, dimensions)
     
-    def returnData(self):
+    def returnData(self) -> tuple:
         return (self.data, self.labels, self.theta)
     
     def visualizeData2D(self, xaxis_col=0, yaxis_col=1, plot_type="scatter"):
@@ -164,6 +217,9 @@ class Dataset:
         return X_norm, X_mean, X_sigma
 
     def denormalizeData(self):
+        """
+        (value - mean) / std
+        """
         X = self.data
         X_norm = self.data
 
@@ -185,8 +241,63 @@ class Dataset:
 
         return X_norm, X_mean, X_sigma
     
+    
+    def PCA(self, k_main_components=0, normalization=True):
+        X = self.data
+
+        m, n = X.shape            
+        if not k_main_components.any():
+            k_main_components = n // 10
+
+        cov = np.cov(X, rowvar=False)
+        eigvals, eigvecs = np.linalg.eigh(cov)
+        
+        # Sort the eigenvectors by descending eigenvalues
+        idx = np.argsort(eigvals)[::-1]
+        eigvecs = eigvecs[:, idx]
+        
+        # Compute the projection matrix
+        X_proj_matrix = eigvecs[:, :k_main_components]
+
+        # Project the image onto the reduced dimensional space
+        X_pca = np.dot(X, X_proj_matrix)
+        
+        self.data_pca = X_pca
+        self.data_pca_proj_matrix = X_proj_matrix
+
+        return X_pca, X_proj_matrix
+
+
+    def recoverDataPCA(self):
+
+        try:
+            X_pca, X_proj_matrix = self.data_pca, self.data_pca_proj_matrix
+            X_reconstructed = np.dot(X_pca, X_proj_matrix)
+        except:
+            raise ValueError("Compute PCA first")
+        
+        self.data_recovered = X_reconstructed
+
+        return X_reconstructed
+    
+    def visualizePCA(self):
+        
+        plots = [self.data, self.data_pca, self.data_recovered]
+        titles = ["Data", "Data PCA", "Data recovered"]
+        plt.subplots(1, 4)
+        for i, data in enumerate(plots):
+            plt.subplot(1, i)
+            plt.imread(data)
+            plt.title(titles[i])
+
+        return None
+
+
     # Data processing functions ==============================================
     def descentGradient(self, alpha=0.01, num_iters=50):
+        """
+        Classic gradient descent algorithm 
+        """
         X, y = self.data, self.labels
 
         m = y.shape[0] 
@@ -202,6 +313,9 @@ class Dataset:
         return theta 
 
     def gaussianGradient(self, theta=[0,0], alpha=1e-4, num_iters=1000, sigma=1):
+        """
+        Gradient descent algorithm with gaussian weight
+        """
         X, y = self.data, self.labels
 
         m = len(y)
@@ -219,6 +333,9 @@ class Dataset:
         return theta  
 
     def normalGradient(self):
+        """
+        Exact gradient computation, heavy computation cost
+        """
         X, y = self.data, self.labels
 
         theta = np.zeros(X.shape[1])
@@ -227,17 +344,28 @@ class Dataset:
 
         return theta
     
-    def predictGradient(self, test_data):
-        
+    def predictGradient(self, test_data, test_label=0):
+        """
+        test_data : input data to be classified using the previously computed gradient
+        test_label : input labels to evaluate the gradient efficiency (optionnal)
+        """
+
         theta = self.theta
         try:
             prediction = np.round(test_data@theta)
         except:
             raise ValueError("Gradient not compatible with this dataset")
 
-        return prediction
+        if test_label:
+            success_rate = np.sum(prediction == test_label) / len(test_label)
+            print(round(success_rate*100, 4))
+
+        return prediction, success_rate
     
     def visualizeGradient(self, test_data, xaxis_col=0, yaxis_col=1):
+        """
+        Plots in 2D the data, labelized with their predicted categories
+        """
 
         categories = np.unique(self.labels)
         print(categories)
@@ -245,7 +373,7 @@ class Dataset:
         try:
             prediction = np.round(test_data@theta)
         except:
-            raise ValueError("Gradient not compatible with this dataset")
+            raise ValueError("Computed gradient not compatible with this dataset")
         
         xaxis_index = 0
         yaxis_index = 1
@@ -278,192 +406,56 @@ class Dataset:
 
         return prediction
 
-
-
-# %% WIP =====================================================================
-
-if __name__ == "__main__":
-
-    def computeCostMulti(X, y, theta):
-
-        # Initialize some useful values
-        m = y.shape[0] # number of training examples
-        
-        # You need to return the following variable correctly
-        J = 0
-        # ===============================================================
-        theta = theta.copy()
-
-        for i in range(m):
-            h = np.dot(X[i, :], theta)
-            J = J + 1/(2*m) * (h - y[i])**2
-
-        # ==================================================================
-        return J
-
-
-    def gradientDescentMulti(X, y, theta, alpha=0.01, num_iters=50):
-        """Stocastic Gradient descend multiple colomns (multi variables)"""
-        
-        #GRADIENTDESCENTMULTI Performs gradient descent to learn theta
-        #   theta = GRADIENTDESCENTMULTI(x, y, theta, alpha, num_iters) updates theta by
-        #   taking num_iters gradient steps with learning rate alpha
-        
-        # Initialize some useful values
-        m = y.shape[0] # number of training examples
-        
-        # make a copy of theta, which will be updated by gradient descent
-        theta = theta.copy()
-        
-        J_history = []
-        # =============================================================
-        
-        for k in tqdm(range(num_iters)):
-            #dJ = np.zeros((m, 1))
-            for i in range(m):
-                #theta[0] can be directly computed thanks to the colomn of ones concatenated to X
-                #It is thus the same algorithn as the gradientDescent one
-                h = np.dot(X[i, :], theta)
-                
-                #dot computed the product of h-y times one row of cells of X[i]
-                theta = theta - alpha * 1/m * (X[i, :].T.dot((h-y[i])))
-            # Save the cost J in every iteration    
-            J_history.append(computeCostMulti(X, y, theta))
-            
-        # ==============================================================     
-
-        return theta, J_history 
-
-    Yy = np.linspace(0, 10, 10)
-    Xx = np.random.rand(1, 10).T
-    Xx = np.concatenate([np.ones((10, 1)), Xx], axis=1)
-
-    theta = np.random.rand(2)
-    alpha = 1e-4
-    num_iters = 10000
-
-    #theta_, J = gradientDescentMulti(Xx, Yy, theta, alpha, num_iters)
-
-    #%%
-    #Exact calculation of a gradient
-
-    def normalEqn(X, y):
-        """Exact Gradient calculation multiple colomns (multi variables)"""
-
-        theta = np.zeros(X.shape[1])
-        
-        # ================================================================
-        theta = np.linalg.inv(X.T@X)@(X.T)@y
-        
-        # =================================================================
-        return theta
-
-    #%% 
-    #================GRADIENT CLASSIFICATION================#
-
-    #%%
-    import numpy as np
-
-    #Définition de la fonction d'activation sigmoid h
-    def sigmoid(z):
-        z = np.array(z)
-        
-        # You need to return the following variables correctly 
-        g = np.zeros(z.shape)
-        
-        g = 1/(1+np.exp(-z))
-
-        return g
-
-    #Fonction de coût régularisée (regularized logistic regression)
-    def lrCostFunction(theta, X, y, lambda_):
-        m = y.size  # number of training examples
-
-        # You need to return the following variables correctly 
-        J = 0
-        grad = np.zeros(theta.shape)
-        
-        # ====================== YOUR CODE HERE ======================
-        
-        h = sigmoid(X@theta)
-        
-        J = (-y.T@np.log(h) - (1 - y).T@np.log(1 - h))/m
-        grad = X.T @ (h - y)/m
-
-        reg_term = lambda_ /(2*m) * (theta[1:].T@theta[1:])
-        
-        J = J + reg_term
-        grad[1:] = grad[1:] + lambda_/m * theta[1:]
-        
-        # =============================================================
-        
-        return J, grad
-
-    #%%
-    from tqdm import tqdm
-    from scipy import optimize
-
-    #Calcul en entraînant 1 catégorie contre toutes les autres, pour établir le theta qui 
-    #générera un vecteur de probabilité d'appartenir à chacune des classes apprises
-    def oneVsAll(X, y, num_labels, lambda_, tol=1e-8, itterations=50):    
+    def oneVsAll(self, lambda_=0.1, tol=1e-8, itterations=50):
+        """
+        Classifies data by comparing the distance of a value to each category,
+        and minimizing it.
+        """    
+        X, y = self.data, self.labels
     
+        m, n = X.shape
+        num_labels = len(np.unique(y))
 
-        # Some useful variables
-        m, n = X.shape;
-        # You need to return the following variables correctly 
-        all_theta = np.zeros((num_labels, n + 1));
-        Cost = np.zeros(num_labels);
-
-        #X, mean, sigma = featureNormalize(X)
-        
-        # Add ones to the X data matrix
-        X = np.concatenate([np.ones((m, 1)), X], axis=1);
-        initial_theta = np.zeros(X.shape[1]);
-        # set options for optimize.minimize
+        X = np.concatenate([np.ones((m, 1)), X], axis=1)
         options= {'maxiter': itterations}
 
-        # ====================== YOUR CODE HERE ======================
-        
+        all_theta = np.zeros((num_labels, n + 1))
+        Cost = np.zeros(num_labels)
+        initial_theta = np.zeros(X.shape[1])
         for k in tqdm(range(num_labels)):
             y_k = np.zeros(m)
             y_k[y==k] = 1
-            res = optimize.minimize(lrCostFunction, initial_theta, (X, y_k, lambda_ ), jac=True, method='SLSQP', tol=tol, options=options)
+            res = optimize.minimize(Dataset.__lrCostFunction, initial_theta, (X, y_k, lambda_ ), jac=True, method='SLSQP', tol=tol, options=options)
             Cost[k] = res.fun
             all_theta[k, :] = res.x
         
-        # =============================================================
-        return Cost, all_theta
+        self.theta = all_theta
+        return all_theta
 
-    #%%
-    #Discrimination des résultats, catégorie = probabilité max d'appartenir aux classes listées 
-    def predictOneVsAll(all_theta, X):    
-    
-        # Make sure the input has two dimensions
-        if X.ndim == 1:
-            X = X[None]  # promote to 2-dimensions
-        
-        # useful variables
-        m, n = X.shape;
-        num_labels = all_theta.shape[0]
+    def predictOneVsAll(self, test_data, test_labels=0):
+        """
+        test_data : input data to be classified using the previously computed gradient
+        test_label : input labels to evaluate the gradient efficiency (optionnal)
+        """
 
-        # You need to return the following variables correctly 
-        p = np.zeros(X.shape[0])
+        all_theta = self.theta
+        m, n = test_data.shape
+        X = np.concatenate((np.ones((m, 1)), test_data), axis=1)
 
-        # ====================== YOUR CODE HERE ======================
-        # make a copy of X, to avoid changing the original array, since numpy arrays
-        # are passed by reference to functions
-        X_bis = X.copy()
-
+        prediction = np.zeros(X.shape[0])
         for i in range(m):
-            p[i] = np.argmax(all_theta@X_bis[i,:].T)
+            prediction[i] = np.argmax(all_theta@X[i,:].T)
 
-        # =============================================================
-        return p
+        if test_labels.any():
+            sucess_rate = np.sum(prediction == test_labels) / len(prediction)
+            print("OneVsAll success rate =", round(sucess_rate, 4)*100, "%")
 
-    #%% 
-    #================NEURAL NETWORK================#
+        return prediction
 
-    #%%
+if __name__ == "__main__":
+
+    #================NEURAL NETWORK================# =========================
+
     from tqdm import tqdm
     from scipy import optimize
     from scipy.io import loadmat
@@ -472,7 +464,6 @@ if __name__ == "__main__":
     def sigmoidGradient(z):
 
         g = np.zeros(z.shape)
-
         g = 1/(1+np.exp(-z)) * (1-1/(1+np.exp(-z)))
 
         return g
@@ -483,8 +474,6 @@ if __name__ == "__main__":
         W = np.random.rand(L_out, 1 + L_in) * 2 * epsilon_init - epsilon_init
 
         return W
-
-    #%%
 
     def nnCostFunction(nn_params, input_layer_size, hidden_layer_size, num_labels, X, y, lambda_=0):
 
@@ -499,8 +488,6 @@ if __name__ == "__main__":
         
         Theta1_grad = np.zeros(Theta1.shape)
         Theta2_grad = np.zeros(Theta2.shape)
-
-        # =============================================================
         
         a1 = np.concatenate([np.ones((m, 1)), X], axis=1)
         z2 = a1 @ Theta1.T
@@ -535,7 +522,6 @@ if __name__ == "__main__":
         Theta2_grad = 1/m * (Delta2 + Theta2_grad_regularization)
         Theta1_grad = 1/m * (Delta1 + Theta1_grad_regularization)
         
-        # ================================================================
         grad = np.concatenate([Theta1_grad.ravel(), Theta2_grad.ravel()])
     
         return J, grad
@@ -621,14 +607,8 @@ if __name__ == "__main__":
         
         return p
 
+    #================SVM================# ====================================
 
-    def utilspredOneLayer(X, Theta1, Theta2):
-        return utils.predict(Theta1, Theta2, X)
-
-    #%% 
-    #================SVM================#
-
-    #%%
     from tqdm import tqdm
 
     def gaussianKernel(x1, x2, sigma):
@@ -636,10 +616,8 @@ if __name__ == "__main__":
 
     def SVMtraining(X, y, X_test, y_test):
 
-    #You need to return the following variables correctly.
-        C = 0.01;
-        sigma = 0.03;
-        # ====================== YOUR CODE HERE ======================
+        C = 0.01
+        sigma = 0.03
         valeurs = []
         for k in range(4):
             for j in range(4):
@@ -665,9 +643,6 @@ if __name__ == "__main__":
         model = utils.svmTrain(X, y, C, gaussianKernel, args=(sigma,))
         utils.visualizeBoundary(X, y, model)
         return None
-
-
-    #%%
 
     def findClosestCentroids(X, centroids):
         # Set the number of clusters
@@ -703,62 +678,5 @@ if __name__ == "__main__":
         randidx = np.random.permutation(m)
         centroids = X[randidx[:K], :]  
         
-        return centroids
-
-    #%%
-
-    def pca(X, k_main_components, normalization=True):
-
-        #PCA Run principal component analysis on the dataset X
-        #U, S = pca(X) computes eigenvectors of the covariance matrix of X
-        #Returns the eigenvectors U, the eigenvalues (on diagonal) in S
-
-        # Useful values
-        m, n = X.shape
-        
-        if normalization:
-            #warnings.filterwarnings('ignore')
-            
-            """
-            scaler = preprocessing.StandardScaler().fit(X)
-            X_norm, mean, std = scaler.transform(X), scaler.mean_, scaler.scale_
-            """
-            
-            X_norm, mean, std = featureNormalize(X)
-            
-            warnings.resetwarnings()
-        else:
-            X_norm, mean, std = X, 0, 1
-            
-        cov = np.cov(X_norm, rowvar=False)
-        
-        eigvals, eigvecs = np.linalg.eigh(cov)
-        
-        # Sort the eigenvectors by descending eigenvalues
-        idx = np.argsort(eigvals)[::-1]
-        eigvecs = eigvecs[:, idx]
-        
-        # Compute the projection matrix
-        X_proj_matrix = eigvecs[:, :k_main_components]
-
-        # Project the image onto the reduced dimensional space
-        X_pca = np.dot(X_norm, X_proj_matrix)
-        
-        return X_pca, (X_proj_matrix, mean, std)
-
-
-    def pca_recoverData(X_pca, pca_info):
-        #RECOVERDATA Recovers an approximation of the original data when using the 
-        #projected matrix of the original data
-            
-        # Reconstruct the image using the reduced dimensional space
-        X_reconstructed = (np.dot(X_pca, pca_info[0].T) + pca_info[1]) * pca_info[2]
-        
-        return X_reconstructed
-
-
-
-
-
-        
+        return centroids        
         

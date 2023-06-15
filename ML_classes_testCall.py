@@ -1,22 +1,23 @@
-# %%
 
-import ML_classes as MPc
+import ML_classes as MLc
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
+# Ensuring the working directory is correct
 current_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(current_dir)
 
-dataset = pd.read_csv("C:\Git\GitTest\iris.csv")
+# Loading example dataset
+dataset = pd.read_csv("iris.csv")
 dataarray = dataset.values
 
 data = dataarray[:,:-1]
 labels = dataarray[:, -1]
 datacolomns = dataset.columns.values.tolist()
 
-array = MPc.Dataset(data, labels, datacolomns)
+array = MLc.Dataset(data, labels, datacolomns)
 metadata = array.returnMetadata()
 
 theta = array.descentGradient()
@@ -25,8 +26,11 @@ test_prediction = array.autoTestGradient()
 test_prediction, fig1 = array.visualizeGradient(data, datacolomns[0], datacolomns[1])
 test_prediction, fig2 = array.visualizeGradient(data, datacolomns[1], datacolomns[2])
 
+all_theta = array.oneVsAll()
+test_prediction = array.predictOneVsAll(data, labels)
 
-# test_prediction = array.visualizeGradient(data, datacolomns[2], datacolomns[3])
+array.descentGradient()
+test_prediction = array.visualizeGradient(data, datacolomns[2], datacolomns[3])
 
 # %%
 

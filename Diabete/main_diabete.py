@@ -2,12 +2,18 @@
 import numpy as np
 import pandas as pd
 import os
-import ML_classes as MLc
+import sys
 import matplotlib.pyplot as plt
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 os.chdir(current_dir)
 
+parent_directory = os.path.dirname(current_dir)
+sys.path.append(parent_directory + "\ML_classes")
+
+import ML_classes as MLc
+
+# %%
 # Loading dataset
 datasheet = pd.read_csv("diabetes_prediction_dataset.csv")
 dataframe = pd.DataFrame(datasheet)

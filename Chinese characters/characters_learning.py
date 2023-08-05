@@ -104,14 +104,25 @@ class SupervisedSimpleNN(nn.Module):
     def __init__(self, input_size, hidden_size, output_size):
         super(SupervisedSimpleNN, self).__init__()
         self.flatten = nn.Flatten()
-        self.layer1 = nn.Linear(input_size, hidden_size)
         self.relu = nn.ReLU()
-        self.layer2 = nn.Linear(hidden_size, output_size)
+
+        self.input_layer = nn.Linear(input_size, hidden_size)
+        
+        self.layer1 = nn.Linear(hidden_size, hidden_size//2)
+        self.layer2 = nn.Linear(hidden_size//2, hidden_size//4)
+        
+        self.output_layer = nn.Linear(hidden_size//4, output_size)
 
     def forward(self, x):
+        x = self.input_layer(x)
+        x = self.relu(x)
+        
         x = self.layer1(x)
         x = self.relu(x)
         x = self.layer2(x)
+        x = self.relu(x)
+        
+        x = self.output_layer(x)
         return x
 
 class DeepSimpleNN(nn.Module):
@@ -172,7 +183,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
 
     supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
     criterion = nn.CrossEntropyLoss()  
-    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.001)
+    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.01)
 
     # Supervised model training
     num_epochs = int(input("Number of epochs : "))
@@ -218,8 +229,8 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
 
     print(f"Accuracy: {100 * correct / total}%")
     
-    print(predicted.numpy()[test_labels.numpy() == 0])
-    print(np.unique(predicted.numpy()[test_labels.numpy() == 0], return_counts=True))
+    # print(predicted.numpy()[test_labels.numpy() == 0])
+    print("Specific value prediction :\n", np.unique(predicted.numpy()[test_labels.numpy() == 0], return_counts=True))
     
     fig = plt.subplots(4, 5)
     for i in range(20):
@@ -263,6 +274,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("deep_model" in sys.arg
     
 
 # %%
+
 
 class DataHandler:
     

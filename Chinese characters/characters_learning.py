@@ -50,7 +50,7 @@ def ImageListStack(path, image_list):
     
     array_list = []
     for ImageListStack_index, ImageListStack_image in enumerate(image_list):
-        array_list.append(np.array(cv2.imread(path + "/data/" + ImageListStack_image)))
+        array_list.append(np.array(cv2.imread(path + "/data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
         
     return np.stack(array_list, axis=2)
 
@@ -69,21 +69,21 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("tensor" in sys.argv) )
 # %%
 import torch.nn as nn
 
-class SimpleNN_1(nn.Module):
-    def __init__(self):
-        super(SimpleNN, self).__init__()        # Call __init__ contructor of torch.nn class
-        self.layer1 = nn.Linear(64 * 64, 128)
-        self.layer2 = nn.Linear(128, 64)
-        self.layer3 = nn.Linear(64, 10)
+class SupervisedSimpleNN(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size):
+        super(SupervisedSimpleNN, self).__init__()
+        self.flatten = nn.Flatten()
+        self.layer1 = nn.Linear(input_size, hidden_size)
+        self.relu = nn.ReLU()
+        self.layer2 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        x = x.view(-1, 28 * 28)
-        x = torch.relu(self.layer1(x))
-        x = torch.relu(self.layer2(x))
-        x = self.layer3(x)
+        x = self.layer1(x)
+        x = self.relu(x)
+        x = self.layer2(x)
         return x
 
-class SimpleNN_2(nn.Module):
+class DeepSimpleNN(nn.Module):
     def __init__(self):
         super().__init__()
         self.flatten = nn.Flatten()
@@ -101,9 +101,73 @@ class SimpleNN_2(nn.Module):
         return logits
 
 
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in sys.argv) ):  
+    # Run model only if no terminal argv, or "supervised_model" argument        
 
-if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("model" in sys.argv) ):  # Run model only if no terminal argv, or "model" argument        
-        
+    train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
+    #Splitting the dataset in half, between train and test examples
+    train_data = train_data_tensor[:,:, 0::2]
+    train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
+    test_data = train_data_tensor[:,:, 1::2]
+    test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
+    m, n, z = train_data.size()
+    
+    input_size = m * n
+    hidden_size = 128
+    output_size = len(np.unique(reduced_value))
+    
+    train_data = train_data.view(z, m*n)
+    print(train_data.size())
+    test_data = test_data.view(z, m*n)
+    print(test_data.size())
+    
+    supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
+    criterion = nn.CrossEntropyLoss()  
+    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.001)
+
+    # Supervised model training
+    num_epochs = int(input("Number of epochs :"))
+    batch_size = z
+    for epoch in tqdm(range(num_epochs)):
+        running_loss = 0.0
+
+        for i in range(0, len(train_data), batch_size):
+            inputs = train_data[i:i+batch_size]
+            labels = train_labels[i:i+batch_size]
+
+            optimizer.zero_grad()
+
+            outputs = supervised_model(inputs)
+            loss = criterion(outputs, train_labels)
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item()
+            
+        # if epoch//10 == 0:
+        #     print(f"Epoch {epoch+1}, Loss: {running_loss / len(train_data)}")
+
+    # Supervised model evaluation 
+    supervised_model.eval()
+    with torch.no_grad():
+        correct = 0
+        total = 0
+
+        for i in tqdm(range(0, len(test_data), batch_size)):
+            inputs = test_data[i:i+batch_size]
+            labels = test_labels[i:i+batch_size]
+
+            outputs = supervised_model(inputs)
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+        print(f"Accuracy: {100 * correct / total}%")
+
+
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("deep_model" in sys.argv) ):
+    # Run model only if no terminal argv, or "model" argument        
+    
     device = (
         "cuda"
         if torch.cuda.is_available()
@@ -113,13 +177,13 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("model" in sys.argv) ):
         )
     print(f"Using {device} device")
     
-    numbersNN_2 = SimpleNN_2()
-    numbersNN_2_model = SimpleNN_2().to(device)
-    print(numbersNN_2_model)
+    DeepSimpleNN()
+    DeepSimpleNN_model = DeepSimpleNN().to(device)
+    print(DeepSimpleNN_model)
 
     input_array = input("Select image number to predict : ") 
     train_data = torch.load(current_folder_path + "/train_data_tensor.pt")[:,:, int(input_array)]
-    logits = numbersNN_2_model(train_data)
+    logits = DeepSimpleNN_model(train_data)
     pred_probab = nn.Softmax(dim=1)(logits)
     y_pred = pred_probab.argmax(1)
     print(f"Predicted class: {y_pred}")

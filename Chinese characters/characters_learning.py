@@ -125,6 +125,22 @@ class SupervisedSimpleNN(nn.Module):
         x = self.output_layer(x)
         return x
 
+class ConvolutionalNN(nn.Module):
+    def __init__(self, height, width, num_classes=10, out_channel=16):
+        super(ConvolutionalNN, self).__init__()
+        self.relu = nn.ReLU()
+        
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels, kernel_size=3, padding=1)
+        self.pool = nn.MaxPool2d(2, 2)
+        
+        self.fc1 = nn.Linear(height * width * out_channels, num_classes)  
+
+    def forward(self, x):
+        x = self.pool(self.relu(self.conv1(x)))
+        x = x.view(-1, height * width * out_channels)
+        x = self.fc1(x)
+        return x
+    
 class DeepSimpleNN(nn.Module):
     def __init__(self):
         super().__init__()
@@ -226,11 +242,11 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     # Model testing
     print(np.unique(predicted.numpy(), return_counts=True))
     print(np.unique(test_labels.numpy(), return_counts=True))
-
+    
     print(f"Accuracy: {100 * correct / total}%")
     
     # print(predicted.numpy()[test_labels.numpy() == 0])
-    print("Specific value prediction :\n", np.unique(predicted.numpy()[test_labels.numpy() == 0], return_counts=True))
+    # print("Specific value prediction :\n", np.unique(predicted.numpy()[test_labels.numpy() == 0], return_counts=True))
     
     fig = plt.subplots(4, 5)
     for i in range(20):
@@ -239,7 +255,60 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
         plt.title( f"Predicted : {predicted.numpy()[i]}, \n Real : {test_labels.numpy()[i]}")
     plt.close('all')
     plt.show()
+
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" in sys.argv) ):  
+    # Run model only if no terminal argv, or "convolutional_model" argument     
+
+    train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
+    #Splitting the dataset in half, between train and test examples
+    train_data = train_data_tensor[:,:, 0::2]
+    train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
+    test_data = train_data_tensor[:,:, 1::2]
+    test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
+    m, n, z = train_data.size()
     
+    num_classes = len(np.unique(reduced_value))
+     
+    criterion = nn.CrossEntropyLoss()
+    convolutional_model = ConvolutionalNN(height=64, width=64, num_classes, out_channel=16)
+    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+
+    num_epochs = int(input("Number of epochs : "))
+    for epoch in tqdm(range(num_epochs)):
+        convolutional_model.train() 
+        running_loss = 0.0
+
+        for batch_idx in range(num_batches):
+            start_idx = batch_idx * batch_size
+            end_idx = min((batch_idx + 1) * batch_size, num_samples)
+            images = train_images[start_idx:end_idx]
+            labels = train_labels[start_idx:end_idx]
+
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+    print(f"Epoch {epoch+1}, Loss: {running_loss / num_batches}")
+
+    # Step 5: Evaluation
+    model.eval()  # Set the model to evaluation mode
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+    print(f"Accuracy on test set: {accuracy:.2f}%")
+    
+     
 # %%
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("deep_model" in sys.argv) ):

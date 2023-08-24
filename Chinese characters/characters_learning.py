@@ -52,7 +52,7 @@ def ImageListStack(path, image_list):
     for ImageListStack_index, ImageListStack_image in enumerate(image_list):
         array_list.append(np.array(cv2.imread(path + "/data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
         
-    return np.stack(array_list, axis=2)
+    return np.stack(array_list, axis=0)
 
 def ConvolutedImageListStack(path, image_list):
     
@@ -60,20 +60,21 @@ def ConvolutedImageListStack(path, image_list):
     for ImageListStack_index, ImageListStack_image in enumerate(image_list):
         array_list.append(np.array(cv2.imread(path + "/data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
         
-    return np.stack(array_list, axis=2)
+    return np.stack(array_list, axis=0)
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("plain_tensor" in sys.argv) ):     # Generates tensor data only if no terminal argv, or "tensor" argument
 
-            image_list = ImageListGenerator(reduced_suite_id, reduced_sample_id, reduced_code)
-            stacked_images_array = ImageListStack(data_folder_path, image_list)
+    image_list = ImageListGenerator(reduced_suite_id, reduced_sample_id, reduced_code)
+    stacked_images_array = ImageListStack(data_folder_path, image_list)
 
-            train_data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
-            #train_data_tensor = torch.nn.functional.normalize(train_data_tensor, dim=1)     # Norme 1
-            train_data_tensor = train_data_tensor/255    # Normalized pixels
-            torch.save(train_data_tensor, "train_data_tensor.pt")
+    train_data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
+    #train_data_tensor = torch.nn.functional.normalize(train_data_tensor, dim=1)     # Norme 1
+    train_data_tensor = train_data_tensor/255    # Normalized pixels
+    torch.save(train_data_tensor, "train_data_tensor.pt")
+    
+    print("dtype | size:", train_data_tensor.dtype, "|", train_data_tensor.size())
+    print("Train data mean, max :", torch.mean(train_data_tensor), torch.max(train_data_tensor))
             
-            print("dtype | size:", train_data_tensor.dtype, "|", train_data_tensor.size())
-            print("Train data mean, max :", torch.mean(train_data_tensor), torch.max(train_data_tensor))
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in sys.argv) ):     # Generates tensor data only if no terminal argv, or "tensor" argument
 
     image_list = ImageListGenerator(reduced_suite_id, reduced_sample_id, reduced_code)
@@ -87,15 +88,15 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in 
     print("dtype | size:", train_data_tensor.dtype, "|", train_data_tensor.size())
     print("Train data mean, max :", torch.mean(train_data_tensor), torch.max(train_data_tensor))
 
-    fig = plt.subplots(4, 5)
-    plt.suptitle("Convoluted images")
-    for i in range(20):
-        plt.subplot(4, 5, i+1)
-        plt.imshow(train_data.numpy()[i,:].reshape(m,n))
-        plt.title( f"Real : {test_labels.numpy()[i]}")
-    plt.close('all')
-    plt.show()
-        
+    # fig = plt.subplots(4, 5)
+    # plt.suptitle("Convoluted images")
+    # for i in range(20):
+    #     plt.subplot(4, 5, i+1)
+    #     plt.imshow(train_data.numpy()[i,:].reshape(m,n))
+    #     plt.title( f"Real : {test_labels.numpy()[i]}")
+    # plt.close('all')
+    # plt.show()
+
 
 # %%
 import torch.nn as nn
@@ -126,20 +127,28 @@ class SupervisedSimpleNN(nn.Module):
         return x
 
 class ConvolutionalNN(nn.Module):
-    def __init__(self, height, width, num_classes=10, out_channel=16):
+    def __init__(self, in_channels=1, num_filters=16, num_classes=10, kernel_size=3):
         super(ConvolutionalNN, self).__init__()
         self.relu = nn.ReLU()
         
-        self.conv1 = nn.Conv2d(in_channels=1, out_channels, kernel_size=3, padding=1)
-        self.pool = nn.MaxPool2d(2, 2)
+        self.conv1 = nn.Conv2d(in_channels, num_filters, kernel_size=kernel_size, padding=kernel_size//2)
+        self.pool = nn.MaxPool2d(2, 4)
         
-        self.fc1 = nn.Linear(height * width * out_channels, num_classes)  
+        self.fc1 = nn.Linear(num_filters*16*16, num_classes)  
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
-        x = x.view(-1, height * width * out_channels)
+        x = x.view(-1, self.num_flat_features(x))
         x = self.fc1(x)
         return x
+
+    #Flattens along dim>=1
+    def num_flat_features(self, x):
+        size = x.size()[1:]
+        num_features = 1
+        for s in size:
+            num_features *= s
+        return num_features
     
 class DeepSimpleNN(nn.Module):
     def __init__(self):
@@ -164,11 +173,12 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
 
     train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
-    train_data = train_data_tensor[:,:, 0::2]
+    train_data = train_data_tensor[0::2, :,:]
     train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
-    test_data = train_data_tensor[:,:, 1::2]
+    test_data = train_data_tensor[1::2, :,:]
     test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
-    m, n, z = train_data.size()
+    z, m, n = train_data.size()
+    print(train_data.size())
     
     input_size = m * n
     hidden_size = 128
@@ -181,21 +191,21 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
         plt.imshow(train_data.numpy()[:,:,i])
         plt.title( f"Real : {test_labels.numpy()[i]}")
         
-    train_data = train_data.permute(2, 0, 1)
+    # train_data = train_data.permute(2, 0, 1)
     train_data = train_data.view(z, m*n)
-    print(train_data.size())
-    test_data = test_data.permute(2, 0, 1)
+    # print(train_data.size())
+    # test_data = test_data.permute(2, 0, 1)
     test_data = test_data.view(z, m*n)
-    print(test_data.size())
+    # print(test_data.size())
 
-    fig = plt.subplots(4, 5)
-    plt.suptitle("Flatten reshaped train_data array")
-    for i in range(20):
-        plt.subplot(4, 5, i+1)
-        plt.imshow(train_data.numpy()[i,:].reshape(m,n))
-        plt.title( f"Real : {test_labels.numpy()[i]}")
-    plt.close('all')
-    plt.show()
+    # fig = plt.subplots(4, 5)
+    # plt.suptitle("Flatten reshaped train_data array")
+    # for i in range(20):
+    #     plt.subplot(4, 5, i+1)
+    #     plt.imshow(train_data.numpy()[i,:].reshape(m,n))
+    #     plt.title( f"Real : {test_labels.numpy()[i]}")
+    # plt.close('all')
+    # plt.show()
 
     supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
     criterion = nn.CrossEntropyLoss()  
@@ -261,49 +271,43 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
 
     train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
-    train_data = train_data_tensor[:,:, 0::2]
+    train_data = train_data_tensor[0::2, :,:].unsqueeze(1)
     train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
-    test_data = train_data_tensor[:,:, 1::2]
+    test_data = train_data_tensor[1::2, :,:].unsqueeze(1)
     test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
-    m, n, z = train_data.size()
+    z, in_channels, m, n = train_data.size()
+    print(train_data.size())
     
     num_classes = len(np.unique(reduced_value))
      
     criterion = nn.CrossEntropyLoss()
-    convolutional_model = ConvolutionalNN(height=64, width=64, num_classes, out_channel=16)
-    optimizer = optim.SGD(model.parameters(), lr=0.01, momentum=0.9)
+    convolutional_model = ConvolutionalNN(num_classes=len(np.unique(test_labels)))
+    optimizer = torch.optim.SGD(convolutional_model.parameters(), lr=0.01, momentum=0.9)
 
-    num_epochs = int(input("Number of epochs : "))
+    num_epochs = int(input("Number of epochs : "))    
     for epoch in tqdm(range(num_epochs)):
         convolutional_model.train() 
         running_loss = 0.0
 
-        for batch_idx in range(num_batches):
-            start_idx = batch_idx * batch_size
-            end_idx = min((batch_idx + 1) * batch_size, num_samples)
-            images = train_images[start_idx:end_idx]
-            labels = train_labels[start_idx:end_idx]
+        optimizer.zero_grad()
+        outputs = convolutional_model(train_data)
+        loss = criterion(outputs, train_labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
 
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-
-    print(f"Epoch {epoch+1}, Loss: {running_loss / num_batches}")
+    print(f"Epoch {epoch+1}, Loss: {running_loss}")
 
     # Step 5: Evaluation
-    model.eval()  # Set the model to evaluation mode
+    convolutional_model.eval()
     correct = 0
     total = 0
 
     with torch.no_grad():
-        for images, labels in test_loader:
-            outputs = model(images)
-            _, predicted = torch.max(outputs.data, 1)
-            total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+        outputs = convolutional_model(test_data)
+        _, predicted = torch.max(outputs.data, 1)
+        total += test_labels.size(0)
+        correct += (predicted == test_labels).sum().item()
 
     accuracy = 100 * correct / total
     print(f"Accuracy on test set: {accuracy:.2f}%")

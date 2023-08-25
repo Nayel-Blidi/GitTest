@@ -127,19 +127,22 @@ class SupervisedSimpleNN(nn.Module):
         return x
 
 class ConvolutionalNN(nn.Module):
-    def __init__(self, in_channels=1, num_filters=16, num_classes=10, kernel_size=3):
+    def __init__(self, num_filters=16, in_channels=1, num_classes=10, kernel_size=3):
         super(ConvolutionalNN, self).__init__()
         self.relu = nn.ReLU()
         
         self.conv1 = nn.Conv2d(in_channels, num_filters, kernel_size=kernel_size, padding=kernel_size//2)
-        self.pool = nn.MaxPool2d(2, 4)
+        self.pool = nn.MaxPool2d(3, 4)
         
-        self.fc1 = nn.Linear(num_filters*16*16, num_classes)  
+        self.fc1 = nn.Linear(num_filters*16*16, num_filters*4*4)  
+        self.fc2 = nn.Linear(num_filters*4*4, num_classes)  
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
         x = x.view(-1, self.num_flat_features(x))
         x = self.fc1(x)
+        # x = self.relu(x)
+        # x = self.fc2(x)
         return x
 
     #Flattens along dim>=1
@@ -209,7 +212,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
 
     supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
     criterion = nn.CrossEntropyLoss()  
-    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.1)
 
     # Supervised model training
     num_epochs = int(input("Number of epochs : "))
@@ -279,10 +282,11 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
     print(train_data.size())
     
     num_classes = len(np.unique(reduced_value))
-     
+    num_filters = int(input("Number of additional filters : "))
+
     criterion = nn.CrossEntropyLoss()
-    convolutional_model = ConvolutionalNN(num_classes=len(np.unique(test_labels)))
-    optimizer = torch.optim.SGD(convolutional_model.parameters(), lr=0.01, momentum=0.9)
+    convolutional_model = ConvolutionalNN(num_classes=len(np.unique(test_labels)), num_filters=num_filters)
+    optimizer = torch.optim.SGD(convolutional_model.parameters(), lr=0.1, momentum=0.2) #momentum=0.9
 
     num_epochs = int(input("Number of epochs : "))    
     for epoch in tqdm(range(num_epochs)):

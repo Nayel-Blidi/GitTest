@@ -71,7 +71,7 @@ def DatasetToTensor(data_folder_path=data_folder_path, suite_id=suite_id, sample
     data_tensor = data_tensor/255    # Normalized pixels
     torch.save(data_tensor, "data_tensor.pt")
     
-    return data_folder_path    
+    return data_tensor    
 
 def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     
@@ -175,7 +175,7 @@ class ConvolutionalNN(nn.Module):
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in sys.argv) ):  
     # Run model only if no terminal argv, or "supervised_model" argument        
 
-    train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
+    train_data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
     train_data = train_data_tensor[0::2, :,:]
     train_labels = torch.from_numpy(value[0::2]).to(torch.long)
@@ -250,7 +250,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" in sys.argv) ):  
     # Run model only if no terminal argv, or "convolutional_model" argument     
 
-    train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
+    train_data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
     train_data = train_data_tensor[0::2, :,:].unsqueeze(1)
     train_labels = torch.from_numpy(value[0::2]).to(torch.long)

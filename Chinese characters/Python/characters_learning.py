@@ -10,19 +10,14 @@ import os
 import sys
 import time
 
-"""
-Training data folder structure:
-- data
-    - jpex eamples ()
-"""
 
 # %% Data loading
-data_folder_path = "d:/Machine Learning/Chinese project/handwritten chinese numbers"
+data_folder_path = "D:/Machine Learning/Chinese project/handwritten chinese numbers"
 current_folder_path = os.path.dirname(os.path.abspath(__file__))
 
 data_csv = pd.read_csv(data_folder_path+"/chinese_mnist.csv")
 DataFrame_csv = pd.DataFrame(data_csv)
-reduced_DataFrame_csv = DataFrame_csv[DataFrame_csv['value'] <= 9] #Reduced dataset, keeping numbers between 0 and 9
+#reduced_DataFrame_csv = DataFrame_csv[DataFrame_csv['value' <= 9]] 
 
 keys = DataFrame_csv.columns
 
@@ -31,11 +26,16 @@ suite_id = DataFrame_csv[keys[0]].values
 sample_id = DataFrame_csv[keys[1]].values
 code = DataFrame_csv[keys[2]].values
 value = DataFrame_csv[keys[3]].values
+value[value == 100 ] = 11
+value[value == 1000] = 12
+value[value == 10000] = 13
+value[value == 100e6] = 14
+print(np.unique(value))
 
-reduced_suite_id = reduced_DataFrame_csv[keys[0]].values
-reduced_sample_id = reduced_DataFrame_csv[keys[1]].values
-reduced_code = reduced_DataFrame_csv[keys[2]].values
-reduced_value = reduced_DataFrame_csv[keys[3]].values
+# reduced_suite_id = reduced_DataFrame_csv[keys[0]].values
+# reduced_sample_id = reduced_DataFrame_csv[keys[1]].values
+# reduced_code = reduced_DataFrame_csv[keys[2]].values
+# reduced_value = reduced_DataFrame_csv[keys[3]].values
 
 # %% IMAGES TO ARRAY
 def ImageListGenerator(suite_id, sample_id, code):
@@ -58,44 +58,62 @@ def ConvolutedImageListStack(path, image_list):
     
     array_list = []
     for ImageListStack_index, ImageListStack_image in enumerate(image_list):
-        array_list.append(np.array(cv2.imread(path + "/data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
+        array_list.append(np.array(cv2.imread(path + "/convoluted data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
         
     return np.stack(array_list, axis=0)
 
-if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("plain_tensor" in sys.argv) ):     # Generates tensor data only if no terminal argv, or "tensor" argument
-
-    image_list = ImageListGenerator(reduced_suite_id, reduced_sample_id, reduced_code)
-    stacked_images_array = ImageListStack(data_folder_path, image_list)
-
-    train_data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
-    #train_data_tensor = torch.nn.functional.normalize(train_data_tensor, dim=1)     # Norme 1
-    train_data_tensor = train_data_tensor/255    # Normalized pixels
-    torch.save(train_data_tensor, "train_data_tensor.pt")
+def DatasetToTensor(data_folder_path=data_folder_path, suite_id=suite_id, sample_id=sample_id, code=code):
     
-    print("dtype | size:", train_data_tensor.dtype, "|", train_data_tensor.size())
-    print("Train data mean, max :", torch.mean(train_data_tensor), torch.max(train_data_tensor))
+    image_list = ImageListGenerator(suite_id, sample_id, code)
+    stacked_images_array = ImageListStack(data_folder_path, image_list)
+    
+    data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
+    data_tensor = data_tensor/255    # Normalized pixels
+    torch.save(data_tensor, "data_tensor.pt")
+    
+    return data_folder_path    
+
+def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
+    
+    image_list = ImageListGenerator(suite_id, sample_id, code)
+    stacked_images_array = ImageListStack(data_folder_path, image_list)
+    
+    data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
+    data_tensor = data_tensor/255    # Normalized pixels
+    torch.save(data_tensor, "data_tensor.pt")
+    
+    return data_tensor
+
+def TensorToModelTensors():
+    current_folder_path= os.path.dirname(os.path.abspath(__file__))
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    
+    #Splitting the dataset in half, between train and test examples
+    train_data = data_tensor[0::2, :,:]
+    train_labels = torch.from_numpy(value[0::2]).to(torch.long)
+    test_data = data_tensor[1::2, :,:]
+    test_labels = torch.from_numpy(value[1::2]).to(torch.long)
+    z, m, n = train_data.size()
+    print("train_data tensor shape :", train_data.size())
+    
+    return train_data, train_labels, test_data, test_labels, (z, m, n)
+
+# %%
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("plain_tensor" in sys.argv) ):     
+    # Generates tensor data only if no terminal argv, or "tensor" argument
+    data_tensor = DatasetToTensor()
+    train_data, train_labels, test_data, test_labels, (z, m, n) = TensorToModelTensors()
+    
+    print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
+    print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
             
-if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in sys.argv) ):     # Generates tensor data only if no terminal argv, or "tensor" argument
-
-    image_list = ImageListGenerator(reduced_suite_id, reduced_sample_id, reduced_code)
-    stacked_images_array = ImageListStack(data_folder_path, image_list)
-
-    train_data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
-    #train_data_tensor = torch.nn.functional.normalize(train_data_tensor, dim=1)     # Norme 1
-    train_data_tensor = train_data_tensor/255    # Normalized pixels
-    torch.save(train_data_tensor, "train_data_tensor.pt")
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in sys.argv) ):     
+    # Generates tensor data only if no terminal argv, or "tensor" argument
+    data_tensor = DatasetToConvolutedTensor()
+    train_data, train_labels, test_data, test_labels, (z, m, n) = TensorToModelTensors()
     
-    print("dtype | size:", train_data_tensor.dtype, "|", train_data_tensor.size())
-    print("Train data mean, max :", torch.mean(train_data_tensor), torch.max(train_data_tensor))
-
-    # fig = plt.subplots(4, 5)
-    # plt.suptitle("Convoluted images")
-    # for i in range(20):
-    #     plt.subplot(4, 5, i+1)
-    #     plt.imshow(train_data.numpy()[i,:].reshape(m,n))
-    #     plt.title( f"Real : {test_labels.numpy()[i]}")
-    # plt.close('all')
-    # plt.show()
+    print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
+    print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
 
 
 # %%
@@ -152,23 +170,6 @@ class ConvolutionalNN(nn.Module):
         for s in size:
             num_features *= s
         return num_features
-    
-class DeepSimpleNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.flatten = nn.Flatten()
-        self.linear_relu_stack = nn.Sequential(
-            nn.Linear(64*64, 512),
-            nn.ReLU(),
-            nn.Linear(512, 512),
-            nn.ReLU(),
-            nn.Linear(512, 10),
-        )
-
-    def forward(self, x):
-        # x = self.flatten(x)
-        logits = self.linear_relu_stack(x)
-        return logits
 
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in sys.argv) ):  
@@ -177,23 +178,17 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
     train_data = train_data_tensor[0::2, :,:]
-    train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
+    train_labels = torch.from_numpy(value[0::2]).to(torch.long)
     test_data = train_data_tensor[1::2, :,:]
-    test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
+    test_labels = torch.from_numpy(value[1::2]).to(torch.long)
     z, m, n = train_data.size()
     print(train_data.size())
     
     input_size = m * n
     hidden_size = 128
-    output_size = len(np.unique(reduced_value))
-
-    fig = plt.subplots(4, 5)
-    plt.suptitle("Sliced train_data array")
-    for i in range(20):
-        plt.subplot(4, 5, i+1)
-        plt.imshow(train_data.numpy()[:,:,i])
-        plt.title( f"Real : {test_labels.numpy()[i]}")
-        
+    output_size = len(np.unique(value))
+    print(output_size)
+    
     # train_data = train_data.permute(2, 0, 1)
     train_data = train_data.view(z, m*n)
     # print(train_data.size())
@@ -201,18 +196,10 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     test_data = test_data.view(z, m*n)
     # print(test_data.size())
 
-    # fig = plt.subplots(4, 5)
-    # plt.suptitle("Flatten reshaped train_data array")
-    # for i in range(20):
-    #     plt.subplot(4, 5, i+1)
-    #     plt.imshow(train_data.numpy()[i,:].reshape(m,n))
-    #     plt.title( f"Real : {test_labels.numpy()[i]}")
-    # plt.close('all')
-    # plt.show()
 
     supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
     criterion = nn.CrossEntropyLoss()  
-    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.1)
+    optimizer = torch.optim.Adam(supervised_model.parameters(), lr=0.01)
 
     # Supervised model training
     num_epochs = int(input("Number of epochs : "))
@@ -232,9 +219,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
             optimizer.step()
 
             running_loss += loss.item()
-            
-        # if epoch//10 == 0:
-        #     print(f"Epoch {epoch+1}, Loss: {running_loss / len(train_data)}")
+
     print("Final loss :", running_loss)
     
     # Supervised model evaluation 
@@ -261,13 +246,6 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     # print(predicted.numpy()[test_labels.numpy() == 0])
     # print("Specific value prediction :\n", np.unique(predicted.numpy()[test_labels.numpy() == 0], return_counts=True))
     
-    fig = plt.subplots(4, 5)
-    for i in range(20):
-        plt.subplot(4, 5, i+1)
-        plt.imshow(test_data.numpy()[i, :].reshape(m, n))
-        plt.title( f"Predicted : {predicted.numpy()[i]}, \n Real : {test_labels.numpy()[i]}")
-    plt.close('all')
-    plt.show()
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" in sys.argv) ):  
     # Run model only if no terminal argv, or "convolutional_model" argument     
@@ -275,18 +253,18 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
     train_data_tensor = torch.load(current_folder_path + "/train_data_tensor.pt")
     #Splitting the dataset in half, between train and test examples
     train_data = train_data_tensor[0::2, :,:].unsqueeze(1)
-    train_labels = torch.from_numpy(reduced_value[0::2]).to(torch.long)
+    train_labels = torch.from_numpy(value[0::2]).to(torch.long)
     test_data = train_data_tensor[1::2, :,:].unsqueeze(1)
-    test_labels = torch.from_numpy(reduced_value[1::2]).to(torch.long)
+    test_labels = torch.from_numpy(value[1::2]).to(torch.long)
     z, in_channels, m, n = train_data.size()
     print(train_data.size())
     
-    num_classes = len(np.unique(reduced_value))
+    num_classes = len(np.unique(value))
     num_filters = int(input("Number of additional filters : "))
 
     criterion = nn.CrossEntropyLoss()
     convolutional_model = ConvolutionalNN(num_classes=len(np.unique(test_labels)), num_filters=num_filters)
-    optimizer = torch.optim.SGD(convolutional_model.parameters(), lr=0.1, momentum=0.2) #momentum=0.9
+    optimizer = torch.optim.Adam(convolutional_model.parameters(), lr=0.1) #momentum=0.9
 
     num_epochs = int(input("Number of epochs : "))    
     for epoch in tqdm(range(num_epochs)):
@@ -302,7 +280,6 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
 
     print(f"Epoch {epoch+1}, Loss: {running_loss}")
 
-    # Step 5: Evaluation
     convolutional_model.eval()
     correct = 0
     total = 0
@@ -349,35 +326,5 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("deep_model" in sys.arg
     #plt.sleep(2)
     #plt.close('all')
     
-
-# %%
-
-
-class DataHandler:
-    
-    def __init__(self, path, suite_id, sample_id, code, value):
-        
-        self.path = path
-        self.suite_id = suite_id
-        self.sample_id = sample_id
-        self.code = code
-        self.value = value
-
-    def ImageShow(self, *args):
-        
-        plt.imshow(plt.imread(self.path + "/data" + f"/input_{args[0]}_{args[1]}_{args[2]}.jpg"))
-        plt.show()
-        
-        return None
-
-
-# dataClass = DataHandler(data_folder_path,x suite_id, sample_id, code, value)
-# dataClass.ImageShow(1, 1, 1)
-
-# for k in range(12):
-#     plt.subplot(3, 4, k+1)
-#     plt.imshow(plt.imread(data_folder_path + "/data" + f"/input_1_1_{k+1}.jpg"))
-#     plt.title(k)
-# plt.show()
 
 print(__file__[__file__.rindex("\\")+1:], f"says : \033[1mSCRIPT TERMINATED SUCCESSFULLY\033[0m")

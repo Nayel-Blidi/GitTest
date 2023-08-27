@@ -84,33 +84,44 @@ def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code)
     
     return data_tensor
 
-def TensorToModelTensors():
+def TensorToTensors():
+    """
+    Evenly divides the data_tensor into train_data (resp. train_labels) and test_data (resp. test_labels)
+    """
     current_folder_path= os.path.dirname(os.path.abspath(__file__))
     data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     
     #Splitting the dataset in half, between train and test examples
-    train_data = data_tensor[0::2, :,:]
+    train_data = data_tensor[0::2, :,:].unsqueeze(1)
     train_labels = torch.from_numpy(value[0::2]).to(torch.long)
-    test_data = data_tensor[1::2, :,:]
+    test_data = data_tensor[1::2, :,:].unsqueeze(1)
     test_labels = torch.from_numpy(value[1::2]).to(torch.long)
-    z, m, n = train_data.size()
+    z, in_channels, m, n = train_data.size()
     print("train_data tensor shape :", train_data.size())
     
-    return train_data, train_labels, test_data, test_labels, (z, m, n)
+    return train_data, train_labels, test_data, test_labels, (z, in_channels, m, n)
 
 # %%
-if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("plain_tensor" in sys.argv) ):     
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("raw_tensor" in sys.argv) ):     
     # Generates tensor data only if no terminal argv, or "tensor" argument
     data_tensor = DatasetToTensor()
-    train_data, train_labels, test_data, test_labels, (z, m, n) = TensorToModelTensors()
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
     
     print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
     print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
-            
+
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("contrasted_tensor" in sys.argv) ):     
+    # Generates tensor data only if no terminal argv, or "tensor" argument
+    data_tensor = DatasetToTensor()
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
+    
+    print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
+    print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
+    
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in sys.argv) ):     
     # Generates tensor data only if no terminal argv, or "tensor" argument
     data_tensor = DatasetToConvolutedTensor()
-    train_data, train_labels, test_data, test_labels, (z, m, n) = TensorToModelTensors()
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
     
     print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
     print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
@@ -152,8 +163,8 @@ class ConvolutionalNN(nn.Module):
         self.conv1 = nn.Conv2d(in_channels, num_filters, kernel_size=kernel_size, padding=kernel_size//2)
         self.pool = nn.MaxPool2d(3, 4)
         
-        self.fc1 = nn.Linear(num_filters*16*16, num_filters*4*4)  
-        self.fc2 = nn.Linear(num_filters*4*4, num_classes)  
+        self.fc1 = nn.Linear(num_filters*16*16, num_classes)  
+        # self.fc2 = nn.Linear(num_filters*4*4, num_classes)  
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
@@ -173,16 +184,10 @@ class ConvolutionalNN(nn.Module):
 
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in sys.argv) ):  
-    # Run model only if no terminal argv, or "supervised_model" argument        
+    # Runs model only if no terminal argv, or "supervised_model" argument        
 
-    train_data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
-    #Splitting the dataset in half, between train and test examples
-    train_data = train_data_tensor[0::2, :,:]
-    train_labels = torch.from_numpy(value[0::2]).to(torch.long)
-    test_data = train_data_tensor[1::2, :,:]
-    test_labels = torch.from_numpy(value[1::2]).to(torch.long)
-    z, m, n = train_data.size()
-    print(train_data.size())
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
     
     input_size = m * n
     hidden_size = 128
@@ -195,7 +200,6 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     # test_data = test_data.permute(2, 0, 1)
     test_data = test_data.view(z, m*n)
     # print(test_data.size())
-
 
     supervised_model = SupervisedSimpleNN(input_size, hidden_size, output_size)
     criterion = nn.CrossEntropyLoss()  
@@ -248,16 +252,11 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("supervised_model" in s
     
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" in sys.argv) ):  
-    # Run model only if no terminal argv, or "convolutional_model" argument     
+    # Runs model only if no terminal argv, or "convolutional_model" argument     
 
-    train_data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
-    #Splitting the dataset in half, between train and test examples
-    train_data = train_data_tensor[0::2, :,:].unsqueeze(1)
-    train_labels = torch.from_numpy(value[0::2]).to(torch.long)
-    test_data = train_data_tensor[1::2, :,:].unsqueeze(1)
-    test_labels = torch.from_numpy(value[1::2]).to(torch.long)
-    z, in_channels, m, n = train_data.size()
-    print(train_data.size())
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
+
     
     num_classes = len(np.unique(value))
     num_filters = int(input("Number of additional filters : "))
@@ -290,41 +289,14 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
         total += test_labels.size(0)
         correct += (predicted == test_labels).sum().item()
 
+    print(np.unique(predicted.numpy(), return_counts=True))
+    # print(np.unique(test_labels.numpy(), return_counts=True))
+    
+    
+    
     accuracy = 100 * correct / total
     print(f"Accuracy on test set: {accuracy:.2f}%")
     
-     
-# %%
-
-if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("deep_model" in sys.argv) ):
-    # Run model only if no terminal argv, or "model" argument        
-    
-    device = (
-        "cuda"
-        if torch.cuda.is_available()
-        else "mps"
-        if torch.backends.mps.is_available()
-        else "cpu"
-        )
-    print(f"Using {device} device")
-    
-    DeepSimpleNN()
-    DeepSimpleNN_model = DeepSimpleNN().to(device)
-    print(DeepSimpleNN_model)
-
-    input_array = input("Select image number to predict : ") 
-    train_data = torch.load(current_folder_path + "/train_data_tensor.pt")[:,:, int(input_array)].flatten()
-
-    logits = DeepSimpleNN_model(train_data)
-    pred_probab = nn.Softmax(dim=1)(logits)
-    y_pred = pred_probab.argmax(1)
-    print(f"Predicted class: {y_pred}")
-    
-    # plt.imshow(torch.numpy(train_data))
-    # plt.title(f"Predicted class : {y_pred}")
-    # plt.show()
-    #plt.sleep(2)
-    #plt.close('all')
     
 
-print(__file__[__file__.rindex("\\")+1:], f"says : \033[1mSCRIPT TERMINATED SUCCESSFULLY\033[0m")
+print(__file__[__file__.rindex("\\")+1:], f"says : \033[1mSCRIPT ENDED SUCCESSFULLY\033[0m")

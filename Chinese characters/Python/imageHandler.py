@@ -9,7 +9,7 @@ from tqdm import tqdm
 class imageHandler:
     def __init__(self, 
                 inputPath=False, outputPath=False,  
-                imagesNames=None, 
+                imagesNames=[], 
                 imagesHeight=64,    imagesWidth=64
                 ):
         
@@ -40,11 +40,11 @@ class imageHandler:
 
         if [file for file in all_files if file.lower().endswith(".jpg")]:
             imagesNames = [file for file in all_files if file.lower().endswith(".jpg")]
+            self.imagesNames = imagesNames
             
         if ([file for file in all_files if file.lower().endswith(".png")]):
             imagesNames = imagesNames.append([file for file in all_files if file.lower().endswith(".png")])
-        
-        self.imagesNames = imagesNames
+            self.imagesNames = imagesNames    
 
         if __name__ == "__main__":
             print("getImagesNames ended successfully")
@@ -78,6 +78,33 @@ class imageHandler:
         if __name__ == "__main__":
             print("resizeImages ended successfully")
 
+    def contrastImages(self):
+        
+        if self.inputPath == False:
+            input_path = f"{imageHandler._getPath(self)}\Images"
+        else:
+            input_path = self.inputPath
+
+        if self.outputPath == False:
+            output_path = f"{imageHandler._getPath(self)}\Images"
+        else:
+            output_path = self.outputPath
+            
+        if __name__ == "__main__" and (len(sys.argv) == 1):
+            print(input_path)
+            
+        try:
+            for image in tqdm(self.imagesNames):
+                array = np.array(Image.open(f"{input_path}\{image}"))
+                array[array < 128] = 0
+                array[array >= 128] == 255
+                array = Image.fromarray(array).convert('L')
+                array.save(f"{output_path}\{image}")  
+        except:
+            raise ValueError("No image found in contrastImages")
+                
+        if __name__ == "__main__":
+            print("contrastImages ended successfully")        
     
     def convoluteImages(self):
         
@@ -121,13 +148,23 @@ if __name__ == "__main__" and (len(sys.argv) == 1):
     class_test.convoluteImages()
     
 
-if __name__ == "__main__" and ( "conv_image" in sys.argv ):
+if __name__ == "__main__" and ( "conv_images" in sys.argv ):
     print(0)
     inputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\data"
     outputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\convoluted data"
     
     conv_image_class = imageHandler(inputPath=inputPath, outputPath=outputPath)
-    img= conv_image_class.getImagesNames()
-    print(img)
+    conv_image_class.getImagesNames()
     conv_image_class.resizeImages()
     conv_image_class.convoluteImages()
+    conv_image_class.contrastImages()
+    
+if __name__ == "__main__" and ( "contrast_images" in sys.argv ):
+    print(0)
+    inputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\data"
+    outputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\contrasted data"
+    
+    conv_image_class = imageHandler(inputPath=inputPath, outputPath=outputPath)
+    conv_image_class.getImagesNames()
+    conv_image_class.resizeImages()
+    conv_image_class.contrastImages()

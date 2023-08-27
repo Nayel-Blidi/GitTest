@@ -59,6 +59,22 @@ def ConvolutedImageListStack(path, image_list):
     array_list = []
     for ImageListStack_index, ImageListStack_image in enumerate(image_list):
         array_list.append(np.array(cv2.imread(path + "/convoluted data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
+
+    return np.stack(array_list, axis=0)
+
+def ContrastedImageListStack(path, image_list):
+    
+    array_list = []
+    for ImageListStack_index, ImageListStack_image in enumerate(image_list):
+        array_list.append(np.array(cv2.imread(path + "/contrasted data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
+
+    return np.stack(array_list, axis=0)
+
+def RotatedImageListStack(path, image_list):
+    
+    array_list = []
+    for ImageListStack_index, ImageListStack_image in enumerate(image_list):
+        array_list.append(np.array(cv2.imread(path + "/rotated data/" + ImageListStack_image, cv2.IMREAD_GRAYSCALE)))
         
     return np.stack(array_list, axis=0)
 
@@ -76,7 +92,29 @@ def DatasetToTensor(data_folder_path=data_folder_path, suite_id=suite_id, sample
 def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     
     image_list = ImageListGenerator(suite_id, sample_id, code)
-    stacked_images_array = ImageListStack(data_folder_path, image_list)
+    stacked_images_array = ConvolutedImageListStack(data_folder_path, image_list)
+    
+    data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
+    data_tensor = data_tensor/255    # Normalized pixels
+    torch.save(data_tensor, "data_tensor.pt")
+    
+    return data_tensor
+
+def DatasetToContrastedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
+    
+    image_list = ImageListGenerator(suite_id, sample_id, code)
+    stacked_images_array = ContrastedImageListStack(data_folder_path, image_list)
+    
+    data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
+    data_tensor = data_tensor/255    # Normalized pixels
+    torch.save(data_tensor, "data_tensor.pt")
+    
+    return data_tensor
+
+def DatasetToRotatedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
+    
+    image_list = ImageListGenerator(suite_id, sample_id, code)
+    stacked_images_array = RotatedImageListStack(data_folder_path, image_list)
     
     data_tensor = torch.from_numpy(stacked_images_array).to(torch.float32)
     data_tensor = data_tensor/255    # Normalized pixels
@@ -112,7 +150,7 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("raw_tensor" in sys.arg
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("contrasted_tensor" in sys.argv) ):     
     # Generates tensor data only if no terminal argv, or "tensor" argument
-    data_tensor = DatasetToTensor()
+    data_tensor = DatasetToContrastedTensor()
     train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
     
     print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
@@ -126,7 +164,14 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convoluted_tensor" in 
     print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
     print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
 
-
+if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("rotated_tensor" in sys.argv) ):     
+    # Generates tensor data only if no terminal argv, or "tensor" argument
+    data_tensor = DatasetToRotatedTensor()
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = TensorToTensors()
+    
+    print("dtype | size:", data_tensor.dtype, "|", data_tensor.size())
+    print("Train data mean, max :", torch.mean(data_tensor), torch.max(data_tensor))
+    
 # %%
 import torch.nn as nn
 
@@ -291,8 +336,6 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("convolutional_model" i
 
     print(np.unique(predicted.numpy(), return_counts=True))
     # print(np.unique(test_labels.numpy(), return_counts=True))
-    
-    
     
     accuracy = 100 * correct / total
     print(f"Accuracy on test set: {accuracy:.2f}%")

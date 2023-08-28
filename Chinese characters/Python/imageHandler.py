@@ -4,7 +4,9 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from scipy.signal import convolve2d
 import sys
+import pandas as pd
 from tqdm import tqdm
+import string
 
 class imageHandler:
     def __init__(self, 
@@ -165,7 +167,50 @@ class imageHandler:
             raise ValueError("No image found in rotateImages")
         
         if __name__ == "__main__":
-            print("rotateImages ended successfully")        
+            print("rotateImages ended successfully")     
+            
+    def separateLabels(self, csv_labels_path, labels_colomn_name):
+        
+        if self.inputPath == False:
+            input_path = f"{imageHandler._getPath(self)}\Images"
+        else:
+            input_path = self.inputPath
+
+        if self.outputPath == False:
+            output_path = f"{imageHandler._getPath(self)}\Images"
+        else:
+            output_path = self.outputPath
+        
+        # csv metadata file
+        labels_df = pd.read_csv(csv_labels_path)
+        
+        # Folders with characters names
+        labels = labels_df[labels_colomn_name].values
+        for value in np.unique(labels):
+            label_folder_path = os.path.join(output_path, str(value))
+            if not os.path.exists(label_folder_path):
+                os.makedirs(label_folder_path)
+                print(f"Folder {label_folder_path} created.")
+            else:
+                print(f"Folder '{label_folder_path}' already exists.")
+        
+        # Sorting images in the right folder using csv metadata file   
+        try:
+            for img_idx, image in tqdm(enumerate(self.imagesNames)):
+                
+                img = Image.open(f"{input_path}\{image}")
+                _, suite_id, sample_id, code = image[:-4].split("_")
+                
+                right_img_label = labels_df[(labels_df["suite_id"] == int(suite_id)) &
+                                            (labels_df["sample_id"] == int(sample_id)) &
+                                            (labels_df["code"] == int(code))
+                                            ]["value"].values[0]
+                print(right_img_label)
+                img_destination = os.path.join(output_path, str(right_img_label))
+                img.save(f"{img_destination}\{image}")  
+        except:
+            raise ValueError("No image found in separateLabels")   
+            
             
 
 if __name__ == "__main__" and (len(sys.argv) == 1):
@@ -204,3 +249,13 @@ if __name__ == "__main__" and ( "rotate_images" in sys.argv ):
     rotate_image_class.contrastImages()
     rotate_image_class.rotateImages()
     
+if __name__ == "__main__" and ( "separate_data" in sys.argv ):
+    inputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\data"
+    outputPath = "D:\Machine Learning\Chinese project\handwritten chinese numbers\data"
+
+    csv_labels_path = "D:\Machine Learning\Chinese project\handwritten chinese numbers\chinese_mnist.csv"
+    labels_colomn_name = "value"
+     
+    separate_image_class = imageHandler(inputPath=inputPath, outputPath=outputPath)
+    separate_image_class.getImagesNames()
+    separate_image_class.separateLabels(csv_labels_path, labels_colomn_name)

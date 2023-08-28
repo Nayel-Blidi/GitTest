@@ -92,7 +92,6 @@ class STNClassifier(nn.Module):
         
         return F.log_softmax(x, dim=1)
 
-
 # %%
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("raw_tensor" in sys.argv) ):     
@@ -154,5 +153,83 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("model_training" in sys
     
     accuracy = 100 * correct / total
     print(f"Accuracy on test set: {accuracy:.2f}%")
+
+# %%
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+import torchvision.models as models
+
+class STNModel(nn.Module):
+    def __init__(self, batch_size, in_channels):
+        super(STNModel, self).__init__()
+        self.batch_size = batch_size
+        self.in_channels = in_channels
+        self.resnet18 = models.resnet18()
+        
+        self.localization = nn.Sequential(
+            nn.Conv2d(self.in_channels, 8, kernel_size=7),
+            nn.MaxPool2d(2, stride=2),
+            nn.ReLU(True)
+        )
+        self.fc_loc = nn.Sequential(
+            nn.Linear(int(self.batch_size*24/125), 32),
+            nn.ReLU(True),
+            nn.Linear(32, 2 * 3)
+        )
+        self.fc_loc[2].weight.data.zero_()
+        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+
+    def forward(self, x):
+        x = self.resnet18.conv1(x)
+        x = self.resnet18.bn1(x)
+        x = self.resnet18.relu(x)
+        x = self.resnet18.maxpool(x)
+        x = self.resnet18.layer1(x)
+        x = self.resnet18.layer2(x)
+        x = self.resnet18.layer3(x)
+        x = self.resnet18.layer4(x)
+        xs = self.localization(x)
+        xs = xs.view(-1, int(self.batch_size*24/125))
+        theta = self.fc_loc(xs)
+        theta = theta.view(-1, 2, 3)
+        return theta
+
+
+# %%
+if __name__ == "__main__" and ("builtin" in sys.argv):
+
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = ch_l.TensorToTensors()
+    batch_size = z
+    num_classes = len(np.unique(train_labels))
+    
+    model = STNModel(batch_size=batch_size, in_channels=in_channels)
+
+    input_image = train_data
+    input_image = torch.randn(7500, 3, m, n)
+
+
+    stn_transform = transforms.Compose([
+        transforms.ToPILImage(mode="L"),
+        transforms.Resize((64, 64)), 
+        transforms.ToTensor(),
+        #transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        #transforms.Lambda(lambda x: x.unsqueeze(0))  # Add batch dimension
+    ])
+
+    theta = model(input_image)
+    output_image = transforms.functional.grid_sample(input_image, theta, align_corners=False)
+    #output_image = stn_transform(output_image[0])  # Remove batch dimension
+
+    # Display the input and output images
+    import matplotlib.pyplot as plt
+    plt.subplot(1, 2, 1)
+    plt.imshow(transforms.ToPILImage()(input_image[0]))
+    plt.title("Input Image")
+    plt.subplot(1, 2, 2)
+    plt.imshow(output_image)
+    plt.title("STN Transformed Image")
+    plt.show()
 
 print(__file__[__file__.rindex("\\")+1:], f"says : \033[1mSCRIPT TERMINATED SUCCESSFULLY\033[0m")

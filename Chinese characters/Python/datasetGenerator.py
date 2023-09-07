@@ -80,7 +80,7 @@ def DatasetToTensor(data_folder_path=data_folder_path, suite_id=suite_id, sample
     data_tensor = data_tensor/255    # Normalized pixels
     torch.save(data_tensor, "data_tensor.pt")
     
-    return data_tensor    
+    return data_tensor, value
 
 def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     
@@ -91,7 +91,7 @@ def DatasetToConvolutedTensor(suite_id=suite_id, sample_id=sample_id, code=code)
     data_tensor = data_tensor/255    # Normalized pixels
     torch.save(data_tensor, "data_tensor.pt")
     
-    return data_tensor
+    return data_tensor, value
 
 def DatasetToContrastedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     
@@ -102,7 +102,7 @@ def DatasetToContrastedTensor(suite_id=suite_id, sample_id=sample_id, code=code)
     data_tensor = data_tensor/255    # Normalized pixels
     torch.save(data_tensor, "data_tensor.pt")
     
-    return data_tensor
+    return data_tensor, value
 
 def DatasetToRotatedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     
@@ -113,7 +113,7 @@ def DatasetToRotatedTensor(suite_id=suite_id, sample_id=sample_id, code=code):
     data_tensor = data_tensor/255    # Normalized pixels
     torch.save(data_tensor, "data_tensor.pt")
     
-    return data_tensor
+    return data_tensor, value
 
 def TensorToTensors():
     """

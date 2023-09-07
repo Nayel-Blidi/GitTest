@@ -8,8 +8,6 @@ import torch
 from tqdm import tqdm
 import os
 import sys
-import time
-
 
 # %% Data loading
 data_folder_path = "D:/Machine Learning/Chinese project/handwritten chinese numbers"
@@ -31,11 +29,6 @@ value[value == 1000] = 12
 value[value == 10000] = 13
 value[value == 100e6] = 14
 print(np.unique(value))
-
-# reduced_suite_id = reduced_DataFrame_csv[keys[0]].values
-# reduced_sample_id = reduced_DataFrame_csv[keys[1]].values
-# reduced_code = reduced_DataFrame_csv[keys[2]].values
-# reduced_value = reduced_DataFrame_csv[keys[3]].values
 
 # %% IMAGES TO ARRAY
 def ImageListGenerator(suite_id, sample_id, code):

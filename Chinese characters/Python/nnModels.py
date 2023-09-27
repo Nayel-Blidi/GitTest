@@ -1,4 +1,4 @@
-
+# %% Imports / Pathing / sys argv / Data loading
 import torch
 import torchvision.models as models
 
@@ -6,6 +6,7 @@ import datasetGenerator as dg
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
+from sklearn.metrics import accuracy_score
 
 import os
 import sys
@@ -27,20 +28,6 @@ argv_list = tensor_list + model_list
 for arg in sys.argv[1:]:
     if arg not in argv_list:
         raise ValueError(f"Wrong arg, try none or one of these :\n{tensor_list}\n{model_list}")
-    
-# data_csv = pd.read_csv(data_folder_path+"/chinese_mnist.csv")
-# DataFrame_csv = pd.DataFrame(data_csv)
-# keys = DataFrame_csv.columns
-
-# suite_id = DataFrame_csv[keys[0]].values
-# sample_id = DataFrame_csv[keys[1]].values
-# code = DataFrame_csv[keys[2]].values
-# value = DataFrame_csv[keys[3]].values
-# value[value == 100 ] = 11
-# value[value == 1000] = 12
-# value[value == 10000] = 13
-# value[value == 100e6] = 14
-# print(np.unique(value))
 
 if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("raw_tensor" in sys.argv) ):     
 
@@ -84,10 +71,10 @@ if __name__ == "__main__" and ( (len(sys.argv) <= 1) or ("rotated_tensor" in sys
     print(f"max: {torch.max(data_tensor)}")
     
 
-# %%
+# %% Vanilla STN model + training/testing
+if __name__ == "__main__" and ( ("STNClassifier_model_training" in sys.argv) or ("STNClassifier_model_testing" in sys.argv) ): # STNClassifier model class 
 
-if __name__ == "__main__" and ( ("STNClassifier_model_training" or "STNClassifier_model_testing") in sys.argv):     
-
+    print("class loading")
     class STN(nn.Module):
         def __init__(self, batch_size, in_channels=1):
             super(STN, self).__init__()
@@ -142,22 +129,28 @@ if __name__ == "__main__" and ( ("STNClassifier_model_training" or "STNClassifie
             
             return F.log_softmax(x, dim=1)
 
-if __name__ == "__main__" and ("STNClassifier_model_training" in sys.argv):     
+if __name__ == "__main__" and ("STNClassifier_model_training" in sys.argv): # STNClasifier training
 
     data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()
     batch_size = z
     num_classes = len(np.unique(train_labels))
     
-    model = STNClassifier(batch_size=batch_size, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001) #100epochs lr=0.0001 89% lr=0.01 78%
-
+    STNClassifier_model = STNClassifier(batch_size=batch_size, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
+    optimizer = torch.optim.Adam(STNClassifier_model.parameters(), lr=0.001) 
+    #100epochs lr=0.0001 89% lr=0.01 78% lr=0.001 90% 
+    #200epochs lr=0.001 92%
+    
+    print(STNClassifier_model)
+    total_params = sum(p.numel() for p in STNClassifier_model.parameters() if p.requires_grad)
+    print(f"Total trainable parameters: {total_params:_}")
+    
     running_loss = 0
     epochs = int(input("Number of epochs : "))
     for epoch in tqdm(range(epochs)):
-        model.train()
+        STNClassifier_model.train()
         optimizer.zero_grad()
-        output = model(train_data)
+        output = STNClassifier_model(train_data)
         loss = F.nll_loss(output, train_labels)
         loss.backward()
         optimizer.step()
@@ -165,24 +158,26 @@ if __name__ == "__main__" and ("STNClassifier_model_training" in sys.argv):
 
     print(f"Epoch {epoch+1}, Loss: {running_loss}")
 
-    torch.save(model.state_dict(), 'STNClassifier_model.pth')
+    torch.save(STNClassifier_model.state_dict(), f"STNClassifier_model_{epochs}.pth")
     print("Finished Training, model saved")
 
-
-if __name__ == "__main__" and ("STNClassifier_model_testing" in sys.argv):
+if __name__ == "__main__" and ("STNClassifier_model_testing" in sys.argv): # STNClasifier testing
+    
+    if ("STNClassifier_model_training" not in sys.argv):
+        epochs = int(input("Model's number of epochs to load (choose among [200, 500]): "))
 
     data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()
     num_classes = len(np.unique(train_labels))
     
-    model = STNClassifier(batch_size=z, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
-    model.load_state_dict(torch.load('STNClassifier_model.pth'))
+    STNClassifier_model = STNClassifier(batch_size=z, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
+    STNClassifier_model.load_state_dict(torch.load(f"STNClassifier_model_{epochs}.pth"))
     
-    model.eval()
+    STNClassifier_model.eval()
     correct = 0
     total = 0
     with torch.no_grad():
-        outputs = model(test_data)
+        outputs = STNClassifier_model(test_data)
         _, predicted = torch.max(outputs.data, 1)
         total += test_labels.size(0)
         correct += (predicted == test_labels).sum().item()
@@ -193,9 +188,8 @@ if __name__ == "__main__" and ("STNClassifier_model_testing" in sys.argv):
     accuracy = 100 * correct / total
     print(f"Accuracy on test set: {accuracy:.2f}%")
 
-# %%
-
-if __name__ == "__main__" and ( ("resnet_training" or "resnet_testing") in sys.argv):
+# %% Resnet model + training/testing
+if __name__ == "__main__" and ( ("resnet_training" or "resnet_testing") in sys.argv): # Resnet model class
     
     class STNresnet18Model(nn.Module):
         def __init__(self, batch_size, in_channels):
@@ -232,7 +226,7 @@ if __name__ == "__main__" and ( ("resnet_training" or "resnet_testing") in sys.a
             theta = theta.view(-1, 2, 3)
             return theta
 
-if __name__ == "__main__" and ( ("data_loader" or "resnet_training" or "resnet_testing") in sys.argv):
+if __name__ == "__main__" and ( ("data_loader" and ("resnet_training" or "resnet_testing")) in sys.argv): # Resnet dataloader
     
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -250,8 +244,8 @@ if __name__ == "__main__" and ( ("data_loader" or "resnet_training" or "resnet_t
     
     dataloader = DataLoader(train_dataset, batch_size=75*5, shuffle=False)
     test_dataloader = DataLoader(test_dataset, shuffle=False)
-    
-if __name__ == "__main__" and ("resnet_training" in sys.argv):
+
+if __name__ == "__main__" and ("resnet_training" in sys.argv): # Resnet training
 
     print("Step 2")
     resnet_model = models.resnet18(weights=None)
@@ -296,10 +290,7 @@ if __name__ == "__main__" and ("resnet_training" in sys.argv):
     torch.save(resnet_model.state_dict(), 'resnet_model.pth')
     print("Finished Training, model saved")
 
-# Step 5: Validation (Optional)
-from sklearn.metrics import accuracy_score
-
-if __name__ == "__main__" and ( "resnet_testing" in sys.argv):
+if __name__ == "__main__" and ( "resnet_testing" in sys.argv): # Resnet testing
 
     num_classes=15
     resnet_model = models.resnet18()
@@ -327,5 +318,141 @@ if __name__ == "__main__" and ( "resnet_testing" in sys.argv):
     print(f"Model testing accuracy : {accuracy}")
     print(all_predictions)
     print(all_labels)
+
+# %% Data Loader STN + training/testing
+if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training" or "STNClassifier_model_testing") in sys.argv): # STNClassifier model class 
+
+    class STN(nn.Module):
+        def __init__(self, batch_size, in_channels=1):
+            super(STN, self).__init__()
+            self.batch_size = batch_size
+
+            self.localization = nn.Sequential(
+                nn.Conv2d(in_channels, 8, kernel_size=7),
+                nn.MaxPool2d(2, stride=2),
+                nn.ReLU(True),
+                nn.Conv2d(8, 10, kernel_size=5),
+                nn.MaxPool2d(2, stride=2),
+                nn.ReLU(True)
+            )
+            
+            # Localization head (predicts the affine transformation)
+            self.fc_loc = nn.Sequential(
+                nn.Linear(int(self.batch_size*24/125), 32),
+                nn.ReLU(True),
+                nn.Linear(32, 3 * 2)
+            )
+
+            # Initialize the weights and biases for the localization network
+            self.fc_loc[2].weight.data.zero_()
+            self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+
+        def forward(self, x):
+            xs = self.localization(x)
+            xs = xs.view(-1, int(self.batch_size*24/125)) #1440
+            theta = self.fc_loc(xs)
+            theta = theta.view(-1, 2, 3)
+            
+            grid = F.affine_grid(theta, x.size(), align_corners=False)
+            x = F.grid_sample(x, grid, align_corners=False)
+            
+            return x
+        
+    class STNClassifier(nn.Module):
+        def __init__(self, batch_size, in_channels=1, height=64, width=64, num_classes=15):
+            super(STNClassifier, self).__init__()
+            
+            self.stn = STN(batch_size=batch_size, in_channels=in_channels)
+            
+            self.fc1 = nn.Linear(height * width, 256)
+            self.fc2 = nn.Linear(256, num_classes)
+            
+        def forward(self, x):
+            x = self.stn(x)
+            x = x.view(-1, x.size(1) * x.size(2) * x.size(3))
+            
+            x = F.relu(self.fc1(x))
+            x = self.fc2(x)
+            
+            return F.log_softmax(x, dim=1)
+
+if __name__ == "__main__" and ( ("data_loader" and ("test" or "test")) in sys.argv): # STNClassifier dataloader
+    
+    transform = transforms.Compose([
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Resize((64, 64)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.5], std=[0.225])
+        ])
+    dataset = datasets.ImageFolder(root="D:\Machine Learning\Chinese project\handwritten chinese numbers\dataloader_data", 
+                                         transform=transform)
+    
+    dataset_length = len(dataset)
+    print(dataset_length)
+    train_dataset_length = round(dataset_length * 0.5)
+    test_dataset_length = dataset_length - train_dataset_length
+    train_data, test_data = random_split(dataset=dataset, lengths=[train_dataset_length, test_dataset_length])
+    
+    dataloader = DataLoader(train_dataset, batch_size=75*5, shuffle=False)
+    test_dataloader = DataLoader(test_dataset, shuffle=False)
+
+if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training") in sys.argv): # STNClassifier training
+
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()
+    batch_size = z
+    num_classes = len(np.unique(train_labels))
+    
+    STNClassifier_model = STNClassifier(batch_size=batch_size, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
+    optimizer = torch.optim.Adam(STNClassifier_model.parameters(), lr=0.001) 
+    #100epochs lr=0.0001 89% lr=0.01 78% lr=0.001 90% 
+    #200epochs lr=0.001 92%
+    
+    print(STNClassifier_model)
+    total_params = sum(p.numel() for p in STNClassifier_model.parameters() if p.requires_grad)
+    print(f"Total trainable parameters: {total_params:_}")
+    
+    running_loss = 0
+    epochs = int(input("Number of epochs : "))
+    for epoch in tqdm(range(epochs)):
+        STNClassifier_model.train()
+        optimizer.zero_grad()
+        output = STNClassifier_model(train_data)
+        loss = F.nll_loss(output, train_labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+
+    print(f"Epoch {epoch+1}, Loss: {running_loss}")
+
+    torch.save(STNClassifier_model.state_dict(), f"STNClassifier_model_{epochs}.pth")
+    print("Finished Training, model saved")
+
+if __name__ == "__main__" and ( ("test" or "STNClassifier_model_testing") in sys.argv): # STNClassifier testing
+    
+    if ("STNClassifier_model_training" not in sys.argv):
+        epochs = int(input("Model's number of epochs to load : "))
+
+    data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
+    train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()
+    num_classes = len(np.unique(train_labels))
+    
+    STNClassifier_model = STNClassifier(batch_size=z, in_channels=in_channels, height=m, width=n, num_classes=num_classes)
+    STNClassifier_model.load_state_dict(torch.load(f"STNClassifier_model_{epochs}.pth"))
+    
+    STNClassifier_model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        outputs = STNClassifier_model(test_data)
+        _, predicted = torch.max(outputs.data, 1)
+        total += test_labels.size(0)
+        correct += (predicted == test_labels).sum().item()
+
+    print(np.unique(predicted.numpy(), return_counts=True))
+    # print(np.unique(test_labels.numpy(), return_counts=True))
+    
+    accuracy = 100 * correct / total
+    print(f"Accuracy on test set: {accuracy:.2f}%")
 
 print(__file__[__file__.rindex("\\")+1:], f"says : \033[1mSCRIPT TERMINATED SUCCESSFULLY\033[0m")

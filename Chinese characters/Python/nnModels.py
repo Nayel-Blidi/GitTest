@@ -23,7 +23,7 @@ data_folder_path = "D:/Machine Learning/Chinese project/handwritten chinese numb
 current_folder_path = os.path.dirname(os.path.abspath(__file__))
 
 tensor_list = ["raw_tensor", "contrasted_tensor", "convoluted_tensor", "rotated_tensor"]
-model_list = ["STNClassifier_model_training", "STNClassifier_model_testing", "resnet_training", "resnet_testing"]
+model_list = ["STNClassifier_model_training", "STNClassifier_model_testing", "resnet_training", "resnet_testing", "test"]
 argv_list = tensor_list + model_list
 for arg in sys.argv[1:]:
     if arg not in argv_list:
@@ -189,7 +189,12 @@ if __name__ == "__main__" and ("STNClassifier_model_testing" in sys.argv): # STN
     print(f"Accuracy on test set: {accuracy:.2f}%")
 
 # %% Resnet model + training/testing
-if __name__ == "__main__" and ( ("resnet_training" or "resnet_testing") in sys.argv): # Resnet model class
+
+if __name__ == "__main__" and ( [cmd_input for cmd_input in ["test1", "test2"] if cmd_input in sys.argv]):
+    print("string in str.argv")
+
+
+if __name__ == "__main__" and ( [cmd_input for cmd_input in ["resnet_training", "resnet_testing"] if cmd_input in sys.argv]): # Resnet model class
     
     class STNresnet18Model(nn.Module):
         def __init__(self, batch_size, in_channels):
@@ -226,7 +231,7 @@ if __name__ == "__main__" and ( ("resnet_training" or "resnet_testing") in sys.a
             theta = theta.view(-1, 2, 3)
             return theta
 
-if __name__ == "__main__" and ( ("data_loader" and ("resnet_training" or "resnet_testing")) in sys.argv): # Resnet dataloader
+if __name__ == "__main__" and ( "data_loader" in sys.argv ) and ( ("resnet_training" in sys.argv) or ("resnet_testing" in sys.argv) ): # Resnet dataloader
     
     transform = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -320,7 +325,8 @@ if __name__ == "__main__" and ( "resnet_testing" in sys.argv): # Resnet testing
     print(all_labels)
 
 # %% Data Loader STN + training/testing
-if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training" or "STNClassifier_model_testing") in sys.argv): # STNClassifier model class 
+
+if __name__ == "__main__" and ( [cmd_input for cmd_input in ["test", "STNClassifier_model_training", "STNClassifier_model_testing"] if cmd_input in sys.argv]): # STNClassifier model class 
 
     class STN(nn.Module):
         def __init__(self, batch_size, in_channels=1):
@@ -376,7 +382,7 @@ if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training" or "ST
             
             return F.log_softmax(x, dim=1)
 
-if __name__ == "__main__" and ( ("data_loader" and ("test" or "test")) in sys.argv): # STNClassifier dataloader
+if __name__ == "__main__" and ( "data_loader" in sys.argv ) and ( ("STNClassifier_model_training" in sys.argv) or ("STNClassifier_model_testing" in sys.argv) ): # STNClassifier dataloader
     
     transform = transforms.Compose([
         transforms.Grayscale(num_output_channels=1),
@@ -396,7 +402,7 @@ if __name__ == "__main__" and ( ("data_loader" and ("test" or "test")) in sys.ar
     dataloader = DataLoader(train_dataset, batch_size=75*5, shuffle=False)
     test_dataloader = DataLoader(test_dataset, shuffle=False)
 
-if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training") in sys.argv): # STNClassifier training
+if __name__ == "__main__" and ( ("test" in sys.argv) or ("STNClassifier_model_training" in sys.argv) ): # STNClassifier training
 
     data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()
@@ -428,10 +434,10 @@ if __name__ == "__main__" and ( ("test" or "STNClassifier_model_training") in sy
     torch.save(STNClassifier_model.state_dict(), f"STNClassifier_model_{epochs}.pth")
     print("Finished Training, model saved")
 
-if __name__ == "__main__" and ( ("test" or "STNClassifier_model_testing") in sys.argv): # STNClassifier testing
+if __name__ == "__main__" and ( ("test" in sys.argv) or ("STNClassifier_model_testing" in sys.argv) ): # STNClassifier testing
     
     if ("STNClassifier_model_training" not in sys.argv):
-        epochs = int(input("Model's number of epochs to load : "))
+        epochs = int(input("Model's number of epochs to load (choose among [200, 500]): "))
 
     data_tensor = torch.load(current_folder_path + "/data_tensor.pt")
     train_data, train_labels, test_data, test_labels, (z, in_channels, m, n) = dg.TensorToTensors()

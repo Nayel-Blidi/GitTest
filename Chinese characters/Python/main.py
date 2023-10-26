@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os 
 import requests
+import subprocess
 
 import imageHandler
 
@@ -23,6 +24,13 @@ Optional :
 
 Test run with chinese numbers, lighter
 """
+
+
+# Define the command to run the script
+command = "nnModels.py "
+
+# Execute the script as a separate process
+subprocess.call(command, shell=True)
 
 # %%
 if __name__ == "__main__":

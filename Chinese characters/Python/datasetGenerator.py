@@ -28,7 +28,6 @@ value[value == 100 ] = 11
 value[value == 1000] = 12
 value[value == 10000] = 13
 value[value == 100e6] = 14
-print(np.unique(value))
 
 # %% IMAGES TO ARRAY
 def ImageListGenerator(suite_id, sample_id, code):

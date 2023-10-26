@@ -161,6 +161,7 @@ cython_debug/
 Chinese characters/train_data_tensor.pt
 data_tensor.pt
 *.png
+*.csv
 test.py
 test2.py
 Chinese characters/Python/resnet_model.pth

@@ -167,3 +167,5 @@ test2.py
 Chinese characters/Python/resnet_model.pth
 *.pth
 Cryptage/
+ML_classes/
+Airbnb/
